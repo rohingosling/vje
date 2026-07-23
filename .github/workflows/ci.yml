@@ -1,0 +1,145 @@
+# ----------------------------------------------------------------------------------------------------------------------
+# VJE 2.0 -- Continuous Integration
+#
+# Builds and tests the single source tree on a Windows + Linux matrix from Phase 5 onward. Linux CI was planned from Phase 0 but
+# stood up here, at the first Qt Widgets phase, where portability drift becomes
+# likely). Each job installs Qt 6, GCC 13 (MinGW-w64 on Windows, matched to the Qt MinGW build), Ninja, and CMake, then
+# configures / builds / tests through the per-toolchain presets with warnings-as-errors on (the CI contract).
+#
+# Note: Qt / MinGW tool archive names track Qt releases; bump the `qt-version` / `mingw` inputs together when moving Qt.
+# ----------------------------------------------------------------------------------------------------------------------
+
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:        # allow a manual run from the Actions tab / `gh workflow run`
+
+# Cancel superseded runs on the same ref to save minutes.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows (MinGW GCC)
+            os: windows-latest
+            configure-preset: windows-release
+            build-preset: windows-release
+            test-preset: windows-release
+            qt-arch: win64_mingw
+            qt-tools: tools_mingw1310
+            qt-tools-bin: mingw1310_64/bin
+          - name: Linux (GCC 13)
+            os: ubuntu-latest
+            configure-preset: linux-release
+            build-preset: linux-release
+            test-preset: linux-release
+            qt-arch: linux_gcc_64
+            qt-tools: ""
+            qt-tools-bin: ""
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install GCC 13 and Ninja (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y g++-13 ninja-build
+
+      - name: Install Ninja (Windows)
+        if: runner.os == 'Windows'
+        uses: seanmiddleditch/gha-setup-ninja@v5
+
+      # Qt SVG (required by src/vje_app/services/IconLibrary) needs NO `modules:` entry: it is part of the base
+      # aqtinstall archive this action wraps. Verified against an aqt linux_gcc_64 6.8.3 install, which ships
+      # libQt6Svg.so, the Qt6Svg CMake package, and the qsvg image plugin. Only MSYS2 splits it into a separate
+      # package (see docs/build.md section 2).
+
+      - name: Install Qt 6
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: 6.8.3
+          arch: ${{ matrix.qt-arch }}
+          tools: ${{ matrix.qt-tools }}
+          cache: true
+
+      - name: Add MinGW to PATH (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: echo "${IQTA_TOOLS}/${{ matrix.qt-tools-bin }}" >> "$GITHUB_PATH"
+
+      - name: Configure
+        run: cmake --preset ${{ matrix.configure-preset }} -DVJE_WARNINGS_AS_ERRORS=ON
+
+      - name: Build
+        run: cmake --build --preset ${{ matrix.build-preset }}
+
+      # --output-on-failure is not optional here. Without it a red CI run names the failing suite and nothing else, so
+      # a failure that does not reproduce locally -- exactly the kind CI exists to catch -- costs a full round-trip just
+      # to learn which assertion broke. Qt Test already prints the actual/expected pair; this is what lets it be seen.
+
+      - name: Test
+        run: ctest --preset ${{ matrix.test-preset }} --output-on-failure
+
+      # A test that dies BEFORE Qt Test prints its banner -- a missing DLL, a crash in widget construction -- produces
+      # no output at all, so --output-on-failure has nothing to show and the log names the suite and stops. That is
+      # exactly what the first red run on this matrix looked like. Re-running the failed test alone under -VV surfaces
+      # the invocation, the environment and the exit code, which is what distinguishes "it crashed" from "it failed".
+
+      - name: Diagnose a failing test
+        if: failure()
+        shell: bash
+        run: |
+          # set +e is load-bearing. GitHub runs `shell: bash` with -e, so the FIRST binary that exits non-zero aborts
+          # this whole script -- which is precisely the binary being investigated, and the reason the previous version
+          # of this step reported nothing at all.
+
+          set +e
+
+          ctest --preset ${{ matrix.test-preset }} --rerun-failed --extra-verbose
+
+          # THE EXIT CODE IS THE DATUM. A test that dies before Qt Test prints its banner loses its buffered stdout
+          # entirely, so ctest shows nothing however verbose it is asked to be. The raw code separates cases that
+          # otherwise look identical: 0xC0000135 (3221225781) is a DLL that failed to load, 0xC0000005 (3221225477) an
+          # access violation, and a small number an ordinary count of failed assertions.
+
+          echo "=== direct run of each test binary (non-zero exits only) ==="
+
+          # The "no dot in the name" arm is how the Linux binaries are matched without also matching *.o / *.cpp.obj.
+
+          find build -type f \( -name 'tst_*.exe' -o \( -name 'tst_*' ! -name '*.*' \) \) | while read -r binary; do
+
+            output=$( QT_QPA_PLATFORM=offscreen "$binary" 2>&1 )
+            code=$?
+
+            if [ "$code" -ne 0 ]; then
+              echo "--- $binary  ->  exit $code"
+              echo "$output" | tail -40
+
+              # Qt Test's own FILE output, because stdout has proved unreliable here: a binary returning 1 (which is
+              # its count of failed test functions, so it definitely reported) produced not one byte on stdout or
+              # stderr, through both ctest --extra-verbose and a direct capture. -o bypasses the stream entirely.
+
+              echo "--- re-run via QTest file output ---"
+              QT_QPA_PLATFORM=offscreen "$binary" -o "qtest-report.txt,txt" > /dev/null 2>&1
+              cat "qtest-report.txt" 2>/dev/null | tail -40
+              rm -f "qtest-report.txt"
+            fi
+          done
+
+          # Diagnostic only: the Test step above already failed the job, and this step failing too would just obscure it.
+
+          exit 0

@@ -1,0 +1,85 @@
+{
+    "version": 3,
+    "cmakeMinimumRequired": { "major": 3, "minor": 21, "patch": 0 },
+
+    "configurePresets": [
+        {
+            "name": "base",
+            "hidden": true,
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build/${presetName}",
+            "cacheVariables": {
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+                "VJE_BUILD_TESTS": "ON",
+                "VJE_ENABLE_YAML": "ON"
+            }
+        },
+
+        {
+            "name": "windows-base",
+            "hidden": true,
+            "inherits": "base",
+            "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows" },
+            "cacheVariables": {
+                "CMAKE_CXX_COMPILER": "g++"
+            }
+        },
+        {
+            "name": "windows-debug",
+            "displayName": "Windows (MinGW GCC) - Debug",
+            "inherits": "windows-base",
+            "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" }
+        },
+        {
+            "name": "windows-release",
+            "displayName": "Windows (MinGW GCC) - Release",
+            "inherits": "windows-base",
+            "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
+        },
+
+        {
+            "name": "linux-base",
+            "hidden": true,
+            "inherits": "base",
+            "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Linux" },
+            "cacheVariables": {
+                "CMAKE_CXX_COMPILER": "g++-13"
+            }
+        },
+        {
+            "name": "linux-debug",
+            "displayName": "Linux (GCC 13) - Debug",
+            "inherits": "linux-base",
+            "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" }
+        },
+        {
+            "name": "linux-release",
+            "displayName": "Linux (GCC 13) - Release",
+            "inherits": "linux-base",
+            "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
+        },
+
+        {
+            "name": "verify",
+            "displayName": "Clean-room verify (Release, either platform)",
+            "inherits": "base",
+            "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
+        }
+    ],
+
+    "buildPresets": [
+        { "name": "windows-debug",   "configurePreset": "windows-debug"   },
+        { "name": "windows-release", "configurePreset": "windows-release" },
+        { "name": "linux-debug",     "configurePreset": "linux-debug"     },
+        { "name": "linux-release",   "configurePreset": "linux-release"   },
+        { "name": "verify",          "configurePreset": "verify"          }
+    ],
+
+    "testPresets": [
+        { "name": "windows-debug",   "configurePreset": "windows-debug",   "output": { "outputOnFailure": true } },
+        { "name": "windows-release", "configurePreset": "windows-release", "output": { "outputOnFailure": true } },
+        { "name": "linux-debug",     "configurePreset": "linux-debug",     "output": { "outputOnFailure": true } },
+        { "name": "linux-release",   "configurePreset": "linux-release",   "output": { "outputOnFailure": true } },
+        { "name": "verify",          "configurePreset": "verify",          "output": { "outputOnFailure": true } }
+    ]
+}
