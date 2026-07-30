@@ -1,0 +1,40 @@
+# Public repository .gitignore.
+#
+# This file is OWNED by the public repo and preserved across promotions -- it is
+# never overwritten by tools/promote. Keep it free of any reference to private,
+# dev-only paths (those must never leave a trace in the public tree).
+
+# CMake / build trees
+build/
+build-*/
+cmake-build-*/
+out/
+
+# Distribution artifacts (installers, AppImages, archives ship as release assets,
+# not committed to the repo)
+dist/
+
+# C / C++ object & binary artifacts
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dylib
+*.dll
+*.exe
+
+# Qt generated files (when a tool emits them in-tree rather than under build/)
+moc_*.cpp
+qrc_*.cpp
+ui_*.h
+*.moc
+
+# IDE / editor
+.idea/
+.vscode/
+*.user
+
+# OS junk
+.DS_Store
+Thumbs.db
