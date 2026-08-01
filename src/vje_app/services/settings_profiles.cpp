@@ -244,4 +244,29 @@ namespace vje
 
 		return settings->value_bool ( settings_keys::FORM_ALLOW_KEY_EDITING, true );
 	}
+
+	config::icons::IconSource icon_source ( const SettingsStore* settings )
+	{
+		if ( settings == nullptr )
+		{
+			return config::icons::DEFAULT_ICON_SOURCE;
+		}
+
+		const QString stored = settings->value_string ( settings_keys::DEBUG_ICON_SOURCE, QString () );
+
+		if ( stored == settings_values::ICON_SOURCE_SVG )
+		{
+			return config::icons::IconSource::Svg;
+		}
+
+		if ( stored == settings_values::ICON_SOURCE_PNG )
+		{
+			return config::icons::IconSource::Png;
+		}
+
+		// Absent or unrecognized. Stated as a fall-through rather than as an else on the second branch, so adding a
+		// third source later cannot accidentally make it the fallback.
+
+		return config::icons::DEFAULT_ICON_SOURCE;
+	}
 }

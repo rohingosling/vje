@@ -127,6 +127,12 @@ namespace vje
 		// then delete these keys -- nothing writes them any more.
 
 		inline const QString TOOLBAR_VISIBLE_PREFIX = QStringLiteral ( "toolbar.visible." );
+
+		// -- Debug group. Developer tooling rather than a user-facing group, hidden by a compile-time switch
+		//    (config::settings_dialog::show::DEBUG_GROUP) rather than by refusing to store it -- so the choice survives
+		//    a restart, and a build with the group switched off simply stops offering to change it.
+
+		inline const QString DEBUG_ICON_SOURCE = QStringLiteral ( "debug.iconSource" );   // Svg / Png.
 	}
 
 	//-----------------------------------------------------------------------------------------------------------------
@@ -194,6 +200,12 @@ namespace vje
 		//    when the setting names none.
 
 		inline const QString DEFAULT_LOG_FILE_NAME = QStringLiteral ( "vje.log" );
+
+		// -- Debug group. Spelled to match the config::icons::IconSource enumerators one-for-one, for the reason the
+		//    theme and table-style values match theirs: the mapping is then a lookup rather than a translation.
+
+		inline const QString ICON_SOURCE_SVG = QStringLiteral ( "Svg" );   // The default (config::icons).
+		inline const QString ICON_SOURCE_PNG = QStringLiteral ( "Png" );
 	}
 
 	//*****************************************************************************************************************

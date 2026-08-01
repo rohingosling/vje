@@ -272,6 +272,37 @@ vje_app_add_gui_test ( tst_settings_schema
 
 target_link_libraries ( tst_settings_schema PRIVATE vje_core )
 
+# The Settings dialog's WIDGETS, as distinct from its content above: SET-01b's rule that a disabled setting greys its
+# text label along with its editor. That is a widget property, so it is unreachable from tst_settings_schema -- which
+# pins what is_field_enabled ANSWERS, while this pins what the dialog does with the answer. Both halves failed
+# independently before SET-01b landed: the decision was already right and the label was already black.
+#
+# It builds a dialog offscreen and reads widget state back; nothing is shown and nothing is drawn.
+
+vje_app_add_gui_test ( tst_settings_dialog
+    tst_settings_dialog.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../dialogs/SettingsDialog.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../dialogs/SettingsDialog.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../dialogs/TransferListEditor.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../dialogs/TransferListEditor.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../dialogs/settings_schema.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../dialogs/settings_schema.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../views/toolbar_catalogue.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../views/toolbar_catalogue.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../controllers/converters.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../controllers/converters.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../services/settings_profiles.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../services/settings_profiles.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../services/SettingsStore.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../services/SettingsStore.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../services/ThemeService.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../services/ThemeService.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../style/FluentStyle.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../style/FluentStyle.hpp
+)
+
+target_link_libraries ( tst_settings_dialog PRIVATE vje_core )
+
 #-----------------------------------------------------------------------------------------------------------------------
 # Toolbar customization (SET-04, Phase 10.5). Three targets for three separable claims: which commands are eligible and
 # how a stored layout is read (catalogue), what the bar renders for a layout (plan), and what the control does to a

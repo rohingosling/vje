@@ -190,6 +190,11 @@ namespace vje
 		create_status_bar ();
 		wire_services ();
 
+		// Before apply_action_icons, so the first icons handed out are already built from the stored source rather than
+		// built from the default and immediately rebuilt (the Debug group).
+
+		apply_icon_source_setting ();
+
 		apply_action_icons ();
 
 		// FILE-09: the window itself is the drop target, so a file may be dropped anywhere on it rather than only on the
@@ -726,6 +731,14 @@ namespace vje
 		}
 	}
 
+	void MainWindow::apply_icon_source_setting ()
+	{
+		// One reader (services/settings_profiles), one consumer -- and IconLibrary announces the change itself, so this
+		// does not have to know which surfaces hold icons.
+
+		icons->set_source ( icon_source ( settings ) );
+	}
+
 	void MainWindow::apply_toolbar_layout ()
 	{
 		// SET-04, and it has to be CONTENT rather than a hidden widget. The QAction is shared with the menu bar and the
@@ -1112,6 +1125,13 @@ namespace vje
 			if ( key == settings_keys::ROUNDED_PANE_CORNERS )
 			{
 				apply_pane_corner_setting ();
+			}
+
+			// The Debug group's icon source, which re-icons the whole application through icons_changed.
+
+			if ( key == settings_keys::DEBUG_ICON_SOURCE )
+			{
+				apply_icon_source_setting ();
 			}
 		} );
 

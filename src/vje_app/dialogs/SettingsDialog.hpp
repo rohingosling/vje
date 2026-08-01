@@ -33,6 +33,7 @@
 #include <memory>
 #include <vector>
 
+class QLabel;
 class QListWidget;
 class QStackedWidget;
 class QWidget;
@@ -92,7 +93,11 @@ namespace vje
 
 		void rebuild_pages ();
 
-		// Re-apply every field's enabledByKey dependency to the live editors (SET-09's folder and file name).
+		// Re-apply every field's enabledByKey dependency to the live rows (SET-09's folder and file name).
+		//
+		// A ROW, not an editor: SET-01b requires the label to grey out with the control it names, so this walks both
+		// hashes below. QFormLayout does not do that for us -- the label is the field's SIBLING, and QWidget's enabled
+		// state propagates to children only.
 
 		void refresh_field_dependencies ();
 
@@ -135,5 +140,11 @@ namespace vje
 		// The live editor for each field key, so a dependency change can enable or disable it without rebuilding a page.
 
 		QHash<QString, QWidget*> editorsByKey;
+
+		// And its LABEL, held separately for the same reason and greyed out with it (SET-01b). Only the label-column
+		// kinds appear here: a composite editor carries its own captions inside the widget, so disabling the widget
+		// already greys them and there is nothing for this hash to hold.
+
+		QHash<QString, QLabel*> labelsByKey;
 	};
 }

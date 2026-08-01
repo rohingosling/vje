@@ -28,6 +28,7 @@
 #include <QFormLayout>
 #include <QHBoxLayout>
 #include <QLineEdit>
+#include <QLabel>
 #include <QListWidget>
 #include <QPushButton>
 #include <QSpinBox>
@@ -143,6 +144,7 @@ namespace vje
 		// holding dangling pointers that refresh_field_dependencies would happily dereference.
 
 		editorsByKey.clear ();
+		labelsByKey.clear ();
 
 		while ( detailPages->count () > 0 )
 		{
@@ -208,7 +210,22 @@ namespace vje
 			}
 			else
 			{
-				form->addRow ( field.label, editor );
+				// The label is CONSTRUCTED here rather than left to addRow's QString overload, which builds one
+				// internally and hands back no pointer to it. SET-01b needs it greyed out with its editor, and
+				// QFormLayout will not do that on its own -- the label is the field's sibling, and QWidget's enabled
+				// state propagates to children only. labelForField() could find it back, but that would mean keeping
+				// the QFormLayout alive to ask, which is a longer-lived pointer than the label itself.
+
+				QLabel* const label = new QLabel ( field.label, page );
+
+				// The buddy is what gives the label's &accelerator (if one is ever added) somewhere to send focus, and
+				// what lets a screen reader read the pair as one row (NFR-05).
+
+				label->setBuddy ( editor );
+
+				labelsByKey.insert ( field.key, label );
+
+				form->addRow ( label, editor );
 			}
 		}
 
@@ -413,16 +430,34 @@ namespace vje
 	{
 		// Disabled, not hidden -- the same rule the menus follow: a setting that exists but does not apply yet should say
 		// so, not vanish (SET-09).
+		//
+		// THE WHOLE ROW GREYS OUT, label included (SET-01b). Qt does not do this for us: QFormLayout puts the label and
+		// the field in adjacent columns as siblings, and QWidget::setEnabled propagates down to children rather than
+		// across, so a disabled editor leaves a fully-black label beside it. That reads as a rendering fault rather
+		// than as a state -- and the label is the half that says WHAT is unavailable, so it is the half most worth
+		// greying. It also carries the state to assistive technology, which reads the label for the row's name.
 
 		for ( const SettingsGroup& group : groups )
 		{
 			for ( const SettingsField& field : group.fields )
 			{
+				const bool enabled = snapshot.is_field_enabled ( field );
+
 				QWidget* const editor = editorsByKey.value ( field.key, nullptr );
 
 				if ( editor != nullptr )
 				{
-					editor->setEnabled ( snapshot.is_field_enabled ( field ) );
+					editor->setEnabled ( enabled );
+				}
+
+				// Absent for the composite kinds, which carry their own captions inside the widget and so grey them
+				// with it -- value() answering null is the ordinary case there, not a missed row.
+
+				QLabel* const label = labelsByKey.value ( field.key, nullptr );
+
+				if ( label != nullptr )
+				{
+					label->setEnabled ( enabled );
 				}
 			}
 		}

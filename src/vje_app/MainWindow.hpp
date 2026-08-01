@@ -190,6 +190,12 @@ namespace vje
 
 		void apply_pane_corner_setting ();
 
+		// The Debug group's icon source. Pushes the stored choice into IconLibrary, which drops its cache and emits
+		// icons_changed; every icon consumer already listens for that, so this one call re-icons the whole application
+		// (config::icons::DEFAULT_ICON_SOURCE).
+
+		void apply_icon_source_setting ();
+
 		// File > Settings... (SET-01). Builds the schema (with the Toolbar group taken from this window's own command
 		// catalogue) and runs the modal dialog; everything it changes reaches the rest of the application through the
 		// store's change signal.

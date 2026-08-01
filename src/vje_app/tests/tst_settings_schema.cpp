@@ -153,6 +153,12 @@ void TestSettingsSchema::the_group_order_is_the_specified_one ()
 	if ( show::PRINTING_GROUP )    { expected.append ( QStringLiteral ( "Printing" ) ); }
 	if ( show::SYSTEM_GROUP )      { expected.append ( QStringLiteral ( "System" ) ); }
 
+	// Debug is TEMPORARY (2026-08-01) and sits after System rather than before it, which does not contradict "System
+	// last": it is not one of SET-02's user-facing groups at all, and DEBUG_GROUP is off for any build that is not
+	// running the icon-rendering experiments. Deleted with the rest of the experiment.
+
+	if ( show::DEBUG_GROUP )       { expected.append ( QStringLiteral ( "Debug" ) ); }
+
 	QCOMPARE ( titles, expected );
 
 	// The master list never offers an empty page. The Toolbar group is the one exception, and only here: its fields are

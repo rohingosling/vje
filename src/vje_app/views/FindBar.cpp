@@ -320,6 +320,7 @@ namespace vje
 		previousButton->setIcon ( icons->icon ( icon_names::NODE_MOVE_UP ) );
 		nextButton    ->setIcon ( icons->icon ( icon_names::NODE_MOVE_DOWN ) );
 		closeButton   ->setIcon ( icons->icon ( icon_names::DOCUMENT_CLOSE ) );
+
 	}
 
 	void FindBar::submit_query ()

@@ -71,10 +71,10 @@ namespace vje
 		treeView->setSelectionBehavior ( QAbstractItemView::SelectRows );
 		treeView->setEditTriggers ( QAbstractItemView::NoEditTriggers );       // Renaming is a command (EDIT-02).
 		treeView->setIndentation ( config::tree::INDENTATION );
-		treeView->setIconSize ( QSize ( config::tree::ICON_SIZE, config::tree::ICON_SIZE ) );
 		treeView->setExpandsOnDoubleClick ( true );
 		treeView->setAnimated ( false );
 		treeView->setContextMenuPolicy ( Qt::CustomContextMenu );
+		treeView->setIconSize ( QSize ( config::tree::ICON_SIZE, config::tree::ICON_SIZE ) );
 
 		// Tab belongs to the workspace, not to the tree (NAV-04). QAbstractItemView defaults this ON, which would make
 		// Tab a second, redundant way of moving the highlight one row -- and would swallow the key before the focus

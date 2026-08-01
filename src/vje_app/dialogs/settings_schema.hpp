@@ -130,6 +130,10 @@ namespace vje
 
 		// The field is editable only while this boolean setting is on. SET-09's log folder and file name, which are inert
 		// while diagnostic logging is off. Empty means always editable.
+		//
+		// A disabled field greys out as a WHOLE ROW, its text label included (SET-01b) -- which is SettingsDialog's job
+		// rather than this table's, but it is the reason the dependency is declared here rather than being wired at
+		// each dependent field's editor.
 
 		QString enabledByKey;
 	};

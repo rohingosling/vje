@@ -29,6 +29,8 @@
 
 #pragma once
 
+#include "AppConfig.hpp"
+
 #include <vje_core/services/JsonFormatter.hpp>
 #include <vje_core/services/TextViewRenderer.hpp>
 
@@ -85,4 +87,11 @@ namespace vje
 	// preference splits, so it is the user's. A null store is a first run, which is the default (filleted).
 
 	bool rounded_pane_corners ( const SettingsStore* settings );
+
+	// Which of the two committed icon trees IconLibrary reads (the Debug group). A null store, an absent key, or an
+	// unrecognized spelling all yield config::icons::DEFAULT_ICON_SOURCE -- which is the same tolerance every reader
+	// above has, and matters more here than most: the setting is developer tooling that a release build does not
+	// present, so a settings file carrying a stale value must not decide what a user's icons come from.
+
+	config::icons::IconSource icon_source ( const SettingsStore* settings );
 }

@@ -16,7 +16,7 @@
 //        Every constant is therefore resolved explicitly.
 //     3. A broken tint -- the icons keep rendering but stop following the palette, quietly violating "icons recolour
 //        with the theme". Compared by pixel between a light and a dark palette.
-//     4. A STALE DERIVED TREE -- the set ships in two forms (config::icons::SOURCE_FORMAT), one of which is generated
+//     4. A STALE DERIVED TREE -- the set ships in two forms, either of which IconLibrary can read, one generated
 //        from the other (config::icons::ARTWORK_SOURCE) by a separate tool. A glyph corrected without re-running that
 //        tool leaves the other form drawing the old artwork, invisibly, in whichever configuration is not live. That
 //        is invisible by construction, which is exactly why it is asserted here rather than left to be noticed.
@@ -421,8 +421,8 @@ private slots:
 	}
 
 	// A DERIVED ASSET CAN GO STALE: whichever tree is not the artwork is produced by a tool that can simply not have
-	// been re-run, leaving it drawing the previous version of a glyph -- silently, and in whichever configuration
-	// config::icons::SOURCE_FORMAT is not currently serving. This renders every SVG and compares it with the PNG.
+	// been re-run, leaving it drawing the previous version of a glyph -- silently, and in whichever source the
+	// application is not currently reading. This renders every SVG and compares it with the PNG.
 	//
 	// ONE COMPARISON ANSWERS BOTH DIRECTIONS. Agreement is symmetric, so which tree is the artwork changes only two
 	// things: how exactly the two are obliged to match, and which tool the failure tells you to re-run. Keeping it as
@@ -516,7 +516,7 @@ private slots:
 	// property worth asserting there is the stronger one it actually promises -- that no delivered pixel carries
 	// partial coverage at all -- and since 2026-07-31 that holds through BOTH sources: the PNGs are drawn that way,
 	// and the SVGs traced from them rasterize back the same. So the assertion follows ARTWORK_SOURCE rather than
-	// SOURCE_FORMAT, and a dropped hardening pass in tools/export_icon_pngs, a mis-traced boundary, or a hand-drawn
+	// the source being read, and a dropped hardening pass in tools/export_icon_pngs, a mis-traced boundary, or a hand-drawn
 	// SVG with a real curve in it each break it.
 
 	void glyphs_are_pixel_crisp_at_every_authored_size ()

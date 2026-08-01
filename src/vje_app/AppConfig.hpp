@@ -517,35 +517,34 @@ namespace vje::config
 		//
 		// The set is committed in BOTH forms and both are compiled in (src/vje_app/CMakeLists.txt): the PNG masters
 		// under assets/images/icons/png/<grid>/<size>/ and the SVG set under assets/images/icons/svg/<grid>/. Which of
-		// the two is the artwork, and which is generated from it, is ARTWORK_SOURCE below -- this constant is only
-		// about which one is READ. Switching is therefore this one constant and a rebuild -- no CMake edit, no asset
-		// regeneration -- which is the whole point: it is a FALLBACK, and a fallback that needs a build-system change
-		// to reach is not one.
+		// the two is the ARTWORK, and which is generated from it, is ARTWORK_SOURCE below -- this is only about which
+		// one is READ.
 		//
-		// The two are interchangeable rather than merely similar, because both sources are tinted from the palette at
-		// load time -- the PNGs are alpha masks whose baked colour the application discards -- and because whichever
-		// tree is DERIVED is produced through the same QSvgRenderer pass at the same sizes IconLibrary would have used.
-		// So the choice does not change what is on screen, only when the rasterization happened. Spec section 2.9's
-		// "icons recolour with the theme" holds either way.
+		// IT IS A RUN-TIME CHOICE, and this constant is only its DEFAULT (2026-08-01). It was a compile-time constant
+		// (config::icons::SOURCE_FORMAT) until the Settings dialog's Debug group gained the switch, and the two were
+		// briefly stated separately -- this one deciding what IconLibrary read, that one seeding the setting. They are
+		// one statement now, because they were one decision: the original justified itself as a FALLBACK, and "a
+		// fallback that needs a build-system change to reach is not one" argues just as plainly against needing a
+		// rebuild. So the fallback is now reachable from the dialog, and what remains here is where it starts.
 		//
-		// SINCE THE SVG SET BECAME A TRANSCRIPTION OF THE PNG ONE (2026-07-31, see ARTWORK_SOURCE below) the two are
-		// pixel-identical at every authored size rather than merely shape-identical, which removes the one reason this
-		// constant used to change what the user sees. What remains is a payload and reach difference, and it runs one
-		// way: SVG is 25 KB against the PNG tree's 47 KB for the base rungs ALONE -- restoring the full 1x-4x ladder
-		// would take the raster tree past 180 KB while the vector one does not move -- and SVG is the only form that
-		// can be rendered at a size nobody exported, including the fractional device pixel ratios a QIconEngine would
-		// need (see the guard rail at the foot of this file). PNG earns its keep as the fallback for a platform where
-		// QSvgRenderer is unavailable or misbehaving; it needs no Qt SVG module at load time, though the module stays a
-		// hard build dependency either way.
+		// SVG IS THE DEFAULT, and the reason is reach rather than fidelity. The two sources are pixel-identical at
+		// every authored size (see ARTWORK_SOURCE), so the choice does not change what is on screen at 16 or 20 -- both
+		// are tinted from the palette at load time, so spec section 2.9's "icons recolour with the theme" holds either
+		// way. What differs is payload and what each can still do: SVG is 25 KB against the PNG tree's 47 KB, and it is
+		// the only form renderable at a size nobody exported -- including the fractional device pixel ratios a
+		// QIconEngine would need (the guard rail at the foot of this file). PNG earns its keep twice over: as the
+		// fallback for a platform where QSvgRenderer is unavailable or misbehaving, needing no Qt SVG module at load
+		// time; and as the ICON AUTHOR'S view, since switching to it shows exactly the file that was drawn rather than
+		// a transcription of it, which is what the Debug switch is for.
 		//-------------------------------------------------------------------------------------------------------------
 
-		enum class SourceFormat
+		enum class IconSource
 		{
 			Svg,   // Rasterize the vector set at load time.
 			Png    // Load the pre-rasterized masks and tint them.
 		};
 
-		inline constexpr SourceFormat SOURCE_FORMAT = SourceFormat::Svg;
+		inline constexpr IconSource DEFAULT_ICON_SOURCE = IconSource::Svg;
 
 		// Where a rasterized pixel stops counting as inked, wherever an antialiased coverage map has to be cut into the
 		// two-value set the PNG tree commits (2026-07-31).
@@ -587,8 +586,8 @@ namespace vje::config
 		// in a generator and re-rendering to find out what it did, where a two-valued PNG can simply be drawn. The
 		// direction that survived is the one a human can actually author in.
 		//
-		// The exactness is not a nicety -- it is what lets SOURCE_FORMAT stay a free choice. While the trees merely
-		// resembled one another, switching source changed what was on screen; now it does not.
+		// The exactness is not a nicety -- it is what lets the source stay a free choice, and a RUN-TIME one. While
+		// the trees merely resembled one another, switching source changed what was on screen; now it does not.
 		//
 		// EACH GENERATOR REBUILDS ITS TARGET TREE WHOLESALE, which is why this is stated rather than inferred: running
 		// the wrong one replaces the artwork with a re-derivation of a derivation. tools/export_icon_pngs additionally
@@ -750,6 +749,27 @@ namespace vje::config
 			inline constexpr bool DIAGNOSTIC_LOGGING       = true;
 			inline constexpr bool LOG_FOLDER               = true;
 			inline constexpr bool LOG_FILE_NAME            = true;
+
+			// -- Debug settings.
+			//    These should generaly only be made visible during development and debugging, and should be turned
+			//    off for production builds. They are not typical user facing features.
+			//
+			//    The GROUP switch is here rather than up with the others deliberately: the group is developer tooling
+			//    rather than one of SET-02's user-facing groups, so keeping its flag beside its field flags makes the
+			//    block one contiguous edit.
+			//
+			//    DEBUG_GROUP off hides all of it whatever the individual switches say -- so that one line is the
+			//    production build's off switch, and the rest narrow what is on screen during a session.
+			//
+			//    ON now, because the icon-authoring loop uses the one setting below: a hand-drawn PNG master is checked
+			//    by switching the source to Png and looking at the running application. Set DEBUG_GROUP to false for a
+			//    release build.
+
+			inline constexpr bool DEBUG_GROUP       = true;
+
+			// Which of the two committed icon trees IconLibrary reads (config::icons::DEFAULT_ICON_SOURCE).
+
+			inline constexpr bool DEBUG_ICON_SOURCE = true;
 		}
 	}
 
@@ -865,7 +885,7 @@ namespace vje::config
 	// device pixel ratio. Integer ratios are covered by icons::SCALE_MULTIPLES; a fractional one is not (20 x 1.25 = 25
 	// is a multiple of neither grid). Closing that needs a QIconEngine rendering the SVG at the requested device size,
 	// which IconLibrary deliberately does not have -- see its header, and Phase 15. That route exists only under
-	// icons::SOURCE_FORMAT == Svg; a pre-rasterized set has nothing to re-render, which is the one capability the two
+	// the Svg source; a pre-rasterized set has nothing to re-render, which is the one capability the two
 	// sources do NOT share now that they carry identical pixels.
 	//-----------------------------------------------------------------------------------------------------------------
 

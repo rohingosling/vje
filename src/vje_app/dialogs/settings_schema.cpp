@@ -441,6 +441,39 @@ namespace vje
 
 			add_group ( groups, show::SYSTEM_GROUP, QObject::tr ( "System" ), std::move ( system ) );
 
+			//---------------------------------------------------------------------------------------------------------
+			// Debug, after System because it is not one of SET-02's user-facing groups at all -- developer tooling,
+			// switched off by show::DEBUG_GROUP for a release build.
+			//
+			// ONE SETTING, and it earns its place through the icon-authoring loop rather than through the antialiasing
+			// experiment it was originally built for. Under ArtworkSource::Raster the PNG tree
+			// is what a human drew and the SVG set is traced from it, so selecting Png shows the author the exact file
+			// they edited rather than a transcription of it -- which is the check that a newly drawn master looks right
+			// at the size it will actually be used.
+			//---------------------------------------------------------------------------------------------------------
+
+			std::vector<SettingsField> debugFields;
+
+			add_field
+			(
+				debugFields,
+				show::DEBUG_ICON_SOURCE,
+				choice_field
+				(
+					settings_keys::DEBUG_ICON_SOURCE,
+					QObject::tr ( "Icon image format" ),
+					{
+						{ QObject::tr ( "SVG" ), settings_values::ICON_SOURCE_SVG },
+						{ QObject::tr ( "PNG" ), settings_values::ICON_SOURCE_PNG }
+					},
+					( config::icons::DEFAULT_ICON_SOURCE == config::icons::IconSource::Svg )
+						? settings_values::ICON_SOURCE_SVG
+						: settings_values::ICON_SOURCE_PNG
+				)
+			);
+
+			add_group ( groups, show::DEBUG_GROUP, QObject::tr ( "Debug" ), std::move ( debugFields ) );
+
 			return groups;
 		}
 	}

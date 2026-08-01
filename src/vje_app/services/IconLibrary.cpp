@@ -31,36 +31,37 @@ namespace vje
 {
 	namespace
 	{
+		using config::icons::IconSource;
+
 		// Where the generated set is compiled in (see src/vje_app/CMakeLists.txt). The resource tree mirrors the asset
 		// tree exactly, so a resource path states both which SOURCE it came from and which master drew it:
 		//
-		//   :/vje/icons/svg/<grid>/<name>.svg              one file per grid, rasterized at each size
-		//   :/vje/icons/png/<grid>/<size>/<name>.png       one file per size, already rasterized
+		//   :/vje/icons/svg/<grid>/<name>.svg          one file per grid, rasterized at each size
+		//   :/vje/icons/png/<grid>/<size>/<name>.png   one file per size, already rasterized
 		//
-		// BOTH are compiled in; config::icons::SOURCE_FORMAT picks which one is read. See AppConfig.hpp for why that is
-		// a constant rather than a build option.
+		// Both are compiled in; which one is read is a run-time choice starting at config::icons::DEFAULT_ICON_SOURCE.
 
 		const QString ICON_RESOURCE_ROOT = QStringLiteral ( ":/vje/icons/" );
 
 		const QString SVG_SUFFIX = QStringLiteral ( ".svg" );
 		const QString PNG_SUFFIX = QStringLiteral ( ".png" );
 
-		constexpr bool uses_vector_source ()
+		bool uses_vector_source ( IconSource source )
 		{
-			return config::icons::SOURCE_FORMAT == config::icons::SourceFormat::Svg;
+			return source == IconSource::Svg;
 		}
 
-		const QString& icon_suffix ()
+		const QString& icon_suffix ( IconSource source )
 		{
-			return uses_vector_source () ? SVG_SUFFIX : PNG_SUFFIX;
+			return uses_vector_source ( source ) ? SVG_SUFFIX : PNG_SUFFIX;
 		}
 
 		// The directory holding one master's glyphs at one size. The SVG set has no size level -- a single file serves
 		// every size -- so pixelSize is simply not part of its path.
 
-		QString icon_resource_directory ( int grid, int pixelSize )
+		QString icon_resource_directory ( int grid, int pixelSize, IconSource source )
 		{
-			if ( uses_vector_source () )
+			if ( uses_vector_source ( source ) )
 			{
 				return ICON_RESOURCE_ROOT + QStringLiteral ( "svg/" ) + QString::number ( grid );
 			}
@@ -69,9 +70,10 @@ namespace vje
 			     + QString::number ( pixelSize );
 		}
 
-		QString icon_resource_path ( const QString& name, int grid, int pixelSize )
+		QString icon_resource_path ( const QString& name, int grid, int pixelSize, IconSource source )
 		{
-			return icon_resource_directory ( grid, pixelSize ) + QLatin1Char ( '/' ) + name + icon_suffix ();
+			return icon_resource_directory ( grid, pixelSize, source ) + QLatin1Char ( '/' ) + name
+			     + icon_suffix ( source );
 		}
 
 		// The size at which a master is asked about when the question is "does this glyph exist" rather than "draw it".
@@ -92,8 +94,9 @@ namespace vje
 	//=================================================================================================================
 
 	IconLibrary::IconLibrary ( ThemeService* theme, QObject* parent )
-		: QObject ( parent )
-		, theme   ( theme )
+		: QObject    ( parent )
+		, theme      ( theme )
+		, iconSource ( config::icons::DEFAULT_ICON_SOURCE )
 	{
 		// Every palette application invalidates the tint -- including the OS-driven repaint under the System theme,
 		// which is why this listens to applied() rather than theme_changed().
@@ -140,27 +143,53 @@ namespace vje
 
 		const int grid = config::icons::GRIDS [ 0 ];
 
-		return QFile::exists ( icon_resource_path ( name, grid, base_size ( grid ) ) );
+		return QFile::exists ( icon_resource_path ( name, grid, base_size ( grid ), iconSource ) );
 	}
 
-	QStringList IconLibrary::available_icons ()
+	QStringList IconLibrary::available_icons ( config::icons::IconSource source )
 	{
 		QStringList names;
 
 		const int grid = config::icons::GRIDS [ 0 ];
 
-		const QDir        directory ( icon_resource_directory ( grid, base_size ( grid ) ) );
+		const QDir        directory ( icon_resource_directory ( grid, base_size ( grid ), source ) );
 		const QStringList entries   =
-			directory.entryList ( { QStringLiteral ( "*%1" ).arg ( icon_suffix () ) }, QDir::Files, QDir::Name );
+			directory.entryList ( { QStringLiteral ( "*%1" ).arg ( icon_suffix ( source ) ) }, QDir::Files, QDir::Name );
 
 		names.reserve ( entries.size () );
 
 		for ( const QString& entry : entries )
 		{
-			names.append ( entry.left ( entry.size () - icon_suffix ().size () ) );
+			names.append ( entry.left ( entry.size () - icon_suffix ( source ).size () ) );
 		}
 
 		return names;
+	}
+
+	config::icons::IconSource IconLibrary::source () const
+	{
+		return iconSource;
+	}
+
+	//=================================================================================================================
+	// Mutators
+	//=================================================================================================================
+
+	void IconLibrary::set_source ( config::icons::IconSource source )
+	{
+		if ( source == iconSource )
+		{
+			return;
+		}
+
+		iconSource = source;
+
+		cache.clear ();
+
+		// The same announcement a theme application makes, and deliberately so: every icon consumer already listens for
+		// it, so switching source needs no wiring of its own.
+
+		emit icons_changed ();
 	}
 
 	//=================================================================================================================
@@ -194,66 +223,83 @@ namespace vje
 		// entirely functional. Trading every icon in the application for that is not a trade worth making, so a missing
 		// size costs that size alone. An icon with no size at all is still null, which is what keeps an unknown name
 		// answering with a blank rather than with someone else's glyph (unknown_name_returns_a_null_icon).
-		//
-		// Which rungs are actually shipped is reported by tst_icon_library rather than left to be inferred from how the
-		// toolbar looks -- a silently degraded ladder is exactly the kind of thing that reads as "fine" until a HiDPI
-		// screen says otherwise.
 
 		for ( const int grid : config::icons::GRIDS )
 		{
 			// The vector source is read ONCE PER GRID and rasterized at each size; the raster source is one file per
-			// size and is read inside the loop below. Reading it here is what keeps the SVG path at two file reads per
-			// icon rather than eight.
+			// size and is read inside add_size. Reading it here is what keeps the SVG path at two file reads per icon
+			// rather than eight.
 
-			const QByteArray vectorSource = uses_vector_source () ? load_source ( name, grid ) : QByteArray ();
+			const QByteArray vectorSource =
+				uses_vector_source ( iconSource ) ? load_source ( name, grid ) : QByteArray ();
 
-			if ( uses_vector_source () && vectorSource.isEmpty () )
+			if ( uses_vector_source ( iconSource ) && vectorSource.isEmpty () )
 			{
 				continue;
 			}
 
 			for ( const int multiple : config::icons::SCALE_MULTIPLES )
 			{
-				const int pixelSize = grid * multiple;
-
-				QPixmap normalPixmap;
-				QPixmap disabledPixmap;
-
-				if ( uses_vector_source () )
-				{
-					normalPixmap   = render_glyph ( vectorSource, pixelSize, normalColour );
-					disabledPixmap = render_glyph ( vectorSource, pixelSize, disabledColour );
-				}
-				else
-				{
-					// One decode, two tints -- the mask is the shape and the colour is applied over it, so asking for
-					// the file twice would decode the same pixels twice for no gain.
-
-					const QImage mask = load_mask ( name, grid, pixelSize );
-
-					normalPixmap   = tint_mask ( mask, normalColour );
-					disabledPixmap = tint_mask ( mask, disabledColour );
-				}
-
-				if ( normalPixmap.isNull () )
-				{
-					continue;
-				}
-
-				// Supplying the Disabled pixmaps explicitly keeps greyed commands tinted from the palette rather than
-				// from Qt's washed-out fallback -- which matters here, where most of the shell's actions start disabled.
-
-				icon.addPixmap ( normalPixmap,   QIcon::Normal,   QIcon::Off );
-				icon.addPixmap ( disabledPixmap, QIcon::Disabled, QIcon::Off );
+				add_size ( icon, name, grid, grid * multiple, vectorSource, normalColour, disabledColour );
 			}
 		}
 
 		return icon;
 	}
 
+	void IconLibrary::add_size
+	(
+		QIcon&            icon,
+		const QString&    name,
+		int               grid,
+		int               pixelSize,
+		const QByteArray& vectorSource,
+		const QColor&     normalColour,
+		const QColor&     disabledColour
+	) const
+	{
+		QPixmap normalPixmap;
+		QPixmap disabledPixmap;
+
+		if ( uses_vector_source ( iconSource ) )
+		{
+			if ( vectorSource.isEmpty () )
+			{
+				return;
+			}
+
+			// Two rasterizations rather than one, and unavoidably so: the tint is substituted INTO the SVG text before
+			// it is parsed, so the two tints are two different documents. The file read they share is the saved cost.
+
+			normalPixmap   = render_glyph ( vectorSource, pixelSize, normalColour );
+			disabledPixmap = render_glyph ( vectorSource, pixelSize, disabledColour );
+		}
+		else
+		{
+			// One decode, two tints -- the mask is the shape and the colour is applied over it, so asking for the file
+			// twice would decode the same pixels twice for no gain.
+
+			const QImage mask = load_mask ( name, grid, pixelSize, iconSource );
+
+			normalPixmap   = tint_mask ( mask, normalColour );
+			disabledPixmap = tint_mask ( mask, disabledColour );
+		}
+
+		if ( normalPixmap.isNull () )
+		{
+			return;
+		}
+
+		// Supplying the Disabled pixmaps explicitly keeps greyed commands tinted from the palette rather than from Qt's
+		// washed-out fallback -- which matters here, where most of the shell's actions start disabled.
+
+		icon.addPixmap ( normalPixmap,   QIcon::Normal,   QIcon::Off );
+		icon.addPixmap ( disabledPixmap, QIcon::Disabled, QIcon::Off );
+	}
+
 	QByteArray IconLibrary::load_source ( const QString& name, int grid )
 	{
-		QFile file ( icon_resource_path ( name, grid, base_size ( grid ) ) );
+		QFile file ( icon_resource_path ( name, grid, base_size ( grid ), IconSource::Svg ) );
 
 		if ( !file.open ( QIODevice::ReadOnly ) )
 		{
@@ -263,12 +309,12 @@ namespace vje
 		return file.readAll ();
 	}
 
-	QImage IconLibrary::load_mask ( const QString& name, int grid, int pixelSize )
+	QImage IconLibrary::load_mask ( const QString& name, int grid, int pixelSize, IconSource source )
 	{
 		// Only the ALPHA channel is used -- see tint_mask -- so the colour the exporter baked in is irrelevant here and
 		// a differently-tinted export would load identically.
 
-		return QImage ( icon_resource_path ( name, grid, pixelSize ) );
+		return QImage ( icon_resource_path ( name, grid, pixelSize, source ) );
 	}
 
 	QPixmap IconLibrary::tint_mask ( const QImage& mask, const QColor& colour )
@@ -320,6 +366,12 @@ namespace vje
 		pixmap.fill ( Qt::transparent );
 
 		QPainter painter ( &pixmap );
+
+		// Set for completeness rather than for effect. QPainter::Antialiasing has no influence on QSvgRenderer, which
+		// antialiases regardless of the painter's hint (measured) -- and it would have nothing to do here in any case:
+		// the masters are drawn on a grid whose unit IS a pixel at that grid's own size, so at every size this renders
+		// every edge falls on a pixel boundary and coverage is exactly 0 or 1
+		// (tst_icon_library::glyphs_are_pixel_crisp_at_every_authored_size).
 
 		painter.setRenderHint ( QPainter::Antialiasing, true );
 

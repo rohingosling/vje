@@ -196,10 +196,11 @@ target_include_directories ( vje_app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} )
 #   svg/<grid>/<name>.svg          traced from it, exactly      (tools/trace_png_to_svg.py)
 #
 # config::icons::ARTWORK_SOURCE names which of the two is the artwork -- the direction above reversed on 2026-07-31 and
-# could reverse again -- while config::icons::SOURCE_FORMAT decides which one IconLibrary READS. Compiling both is what
-# makes the second a one-constant change rather than a build-system change; see AppConfig.hpp. The cost is the unused
-# form carried in the binary either way (~25 KB of SVG, ~47 KB of PNG at the base rungs), which is the accepted price
-# of the fallback being reachable.
+# could reverse again -- while which one IconLibrary READS is a run-time choice starting at
+# config::icons::DEFAULT_ICON_SOURCE and moved by the Settings dialog's Debug group. Compiling both is what makes the
+# second a setting rather than a build-system change; see AppConfig.hpp. The cost is the unused form carried in the
+# binary either way (~25 KB of SVG, ~47 KB of PNG at the base rungs), which is the accepted price of the fallback
+# being reachable -- and of the icon author being able to see the file they drew.
 #
 # BASE is the icons root for both, so each file keeps its own subtree in the resource path and the resource tree mirrors
 # the asset tree exactly: ":/vje/icons/svg/16/go-up.svg", ":/vje/icons/png/16/32/go-up.png".
