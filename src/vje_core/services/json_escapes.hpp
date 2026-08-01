@@ -28,7 +28,7 @@
 //   TWO TOLERANCES ARE DELIBERATE. A RAW control character inside escaped text decodes as itself, so a pasted tab and a
 //   typed \t both land on a TAB and both reappear escaped once committed. A MALFORMED escape fails, and the caller
 //   surfaces that as QValidator::Intermediate rather than Invalid -- the keystroke is allowed and the COMMIT is refused
-//   with the caret held, reusing VAL-03's existing path (lessons-learned.md Q14).
+//   with the caret held, reusing VAL-03's existing path.
 //
 //   SCOPE: the eight two-character escapes. \uXXXX is decoded (a file may contain it) but never PRODUCED, so an accented
 //   character always shows as itself -- which is also what a save writes, since the serializer escapes only below

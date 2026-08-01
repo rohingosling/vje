@@ -12,7 +12,7 @@
 //   available: the menu bar and the context menus share the very same action, so hiding it would remove the command from
 //   the whole application rather than from the toolbar. Hiding the tool BUTTON does not hold either -- QToolBar's layout
 //   drives each button's visibility from its action's on every relayout, so a directly hidden button quietly comes back
-//   (lessons-learned.md Q23). What is left, and what is also the simplest thing to reason about, is CONTENT: the toolbar
+//   itself. What is left, and what is also the simplest thing to reason about, is CONTENT: the toolbar
 //   is rebuilt to hold exactly the planned items. That was true of the original per-button SET-04 and is unchanged; what
 //   changed on 2026-07-27 is only the INPUT -- an ordered layout instead of a predicate over a fixed order.
 //

@@ -731,7 +731,7 @@ namespace vje
 		// SET-04, and it has to be CONTENT rather than a hidden widget. The QAction is shared with the menu bar and the
 		// context menus, so hiding the action would remove the command from the whole application; and hiding the tool
 		// BUTTON does not hold, because QToolBar's layout re-derives each button's visibility from its action's on every
-		// relayout -- a directly hidden button comes back on its own (lessons-learned.md Q23). So the toolbar is rebuilt
+		// relayout -- a directly hidden button comes back on its own. So the toolbar is rebuilt
 		// to contain exactly what the user's layout asks for (views/toolbar_plan.hpp).
 
 		for ( QAction* const existing : mainToolBar->actions () )

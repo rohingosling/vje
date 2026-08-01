@@ -12,7 +12,7 @@
 //   IT NEVER RETURNS Invalid, and that is the whole design decision here. Invalid refuses the KEYSTROKE, which is right
 //   for a number -- there is no point letting a user type a character that can never be part of a valid one -- and wrong
 //   here, because the way to write a literal backslash-t is to type a backslash first, and refusing the second
-//   character of every escape as it is typed would make the notation unusable (lessons-learned.md Q14). So anything
+//   character of every escape as it is typed would make the notation unusable. So anything
 //   that does not yet decode is Intermediate: the typing is allowed, and it is the COMMIT that is refused, with the
 //   caret held in the cell and the reason in the status bar. That reuses VAL-03's existing path exactly -- the delegate
 //   already declines to close an editor whose input is not Acceptable.

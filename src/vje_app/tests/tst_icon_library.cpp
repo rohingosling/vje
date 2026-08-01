@@ -8,7 +8,7 @@
 //
 //   IconLibrary unit tests, run against the REAL shipped assets (the same Qt resource the application compiles).
 //
-//   Three failure modes drive the choices here, because all three are silent at run time and invisible to a build:
+//   Four failure modes drive the choices here, because all four are silent at run time and invisible to a build:
 //
 //     1. A missing Qt SVG module -- QSvgRenderer refuses the source and every icon comes back null. Asserting that
 //        icons are non-null AND actually paint pixels catches it; a build alone would not.
@@ -16,6 +16,10 @@
 //        Every constant is therefore resolved explicitly.
 //     3. A broken tint -- the icons keep rendering but stop following the palette, quietly violating "icons recolour
 //        with the theme". Compared by pixel between a light and a dark palette.
+//     4. A STALE DERIVED TREE -- the set ships in two forms (config::icons::SOURCE_FORMAT), one of which is generated
+//        from the other (config::icons::ARTWORK_SOURCE) by a separate tool. A glyph corrected without re-running that
+//        tool leaves the other form drawing the old artwork, invisibly, in whichever configuration is not live. That
+//        is invisible by construction, which is exactly why it is asserted here rather than left to be noticed.
 //
 //   Runs under the offscreen QPA platform (set by CTest), so it needs no display.
 //
@@ -29,10 +33,14 @@
 
 #include <QApplication>
 #include <QDir>
+#include <QFile>
 #include <QIcon>
 #include <QImage>
+#include <QPainter>
 #include <QPixmap>
+#include <QRectF>
 #include <QSignalSpy>
+#include <QSvgRenderer>
 #include <QTemporaryDir>
 #include <QTest>
 
@@ -133,6 +141,131 @@ namespace
 
 		return inked > 0 ? double ( solid ) / double ( inked ) : 0.0;
 	}
+
+	// The base names in one resource directory, sorted -- the shared half of "every master carries every name", asked
+	// of an SVG master and of each rendered size of a PNG one.
+
+	QStringList resource_base_names ( const QString& directoryPath, const QString& suffix )
+	{
+		const QDir directory ( directoryPath );
+
+		QStringList names;
+
+		for ( const QString& entry : directory.entryList ( { QStringLiteral ( "*%1" ).arg ( suffix ) },
+		                                                   QDir::Files, QDir::Name ) )
+		{
+			names.append ( entry.left ( entry.size () - suffix.size () ) );
+		}
+
+		return names;
+	}
+
+	// The reference render for the agreement check: the same QSvgRenderer pass, ground and size that both
+	// IconLibrary::render_glyph and tools/export_icon_pngs use.
+	//
+	// WHETHER THE RESULT IS CUT AT PNG_ALPHA_THRESHOLD DEPENDS ON WHICH TREE IS THE ARTWORK, and it is the caller's
+	// call rather than this function's:
+	//
+	//   Vector -- the SVGs are strokes and their render is antialiased, while the committed PNGs are two-valued. The
+	//             cut is the exporter's own, so applying it here is what makes the two comparable at all; without it
+	//             all 43 glyphs read as drifted and the check says nothing about whether any of them is.
+	//
+	//   Raster -- the SVGs are traced from those same two-valued PNGs, so the render has no partial coverage to cut.
+	//             Cutting anyway would be actively harmful: it would round a genuinely soft render up to the answer
+	//             expected and report a defect as agreement.
+	//
+	// The tint is irrelevant -- only alpha is compared -- so it is left at the source's own currentColor rather than
+	// substituted.
+
+	QImage render_reference ( const QByteArray& svgText, int pixelSize, bool harden )
+	{
+		QSvgRenderer renderer ( svgText );
+
+		if ( !renderer.isValid () )
+		{
+			return QImage ();
+		}
+
+		QImage image ( pixelSize, pixelSize, QImage::Format_ARGB32 );
+
+		image.fill ( Qt::transparent );
+
+		QPainter painter ( &image );
+
+		painter.setRenderHint ( QPainter::Antialiasing, true );
+
+		renderer.render ( &painter, QRectF ( 0, 0, pixelSize, pixelSize ) );
+
+		painter.end ();
+
+		if ( !harden )
+		{
+			return image;
+		}
+
+		for ( int y = 0; y < image.height (); ++y )
+		{
+			for ( int x = 0; x < image.width (); ++x )
+			{
+				const bool inked = qAlpha ( image.pixel ( x, y ) ) >= config::icons::PNG_ALPHA_THRESHOLD;
+
+				image.setPixel ( x, y, inked ? qRgba ( 0, 0, 0, 255 ) : qRgba ( 0, 0, 0, 0 ) );
+			}
+		}
+
+		return image;
+	}
+
+	// How many pixels in a render carry PARTIAL coverage. Under a traced set this must be zero at every authored size:
+	// every vertex is an integer, so at an integer multiple of the grid every edge lands between pixels and nothing is
+	// half-covered. It is the measure that separates "the shapes agree" from "the shapes are the same drawing".
+
+	int partial_coverage_count ( const QImage& image )
+	{
+		int count = 0;
+
+		for ( int y = 0; y < image.height (); ++y )
+		{
+			for ( int x = 0; x < image.width (); ++x )
+			{
+				const int alpha = qAlpha ( image.pixel ( x, y ) );
+
+				if ( alpha != 0 && alpha != 255 )
+				{
+					++count;
+				}
+			}
+		}
+
+		return count;
+	}
+
+	// Coverage-only equality. Exact rather than tolerant: both sides come from the same rasterizer at the same size, so
+	// any difference at all means the two are not the same drawing.
+
+	bool alpha_channels_match ( const QImage& left, const QImage& right )
+	{
+		const QImage a = left.convertToFormat  ( QImage::Format_ARGB32 );
+		const QImage b = right.convertToFormat ( QImage::Format_ARGB32 );
+
+		if ( a.size () != b.size () )
+		{
+			return false;
+		}
+
+		for ( int y = 0; y < a.height (); ++y )
+		{
+			for ( int x = 0; x < a.width (); ++x )
+			{
+				if ( qAlpha ( a.pixel ( x, y ) ) != qAlpha ( b.pixel ( x, y ) ) )
+				{
+					return false;
+				}
+			}
+		}
+
+		return true;
+	}
 }
 
 //*********************************************************************************************************************
@@ -204,33 +337,164 @@ private slots:
 		QVERIFY ( !icons->has_icon ( QStringLiteral ( "no-such-icon" ) ) );
 	}
 
-	// has_icon() and available_icons() both answer from ONE master, which is only sound while every master carries
-	// every name. The generator refuses to emit a set where it does not; this is the same claim checked against what
-	// actually shipped, so a hand-added or hand-deleted asset cannot slip past it.
+	// has_icon() and available_icons() both answer from ONE master of ONE source, which is only sound while every
+	// master carries every name AND both sources carry the same names. The generator refuses to emit a set where the
+	// two masters disagree, but nothing upstream compares the SVG tree with the PNG tree -- they are produced by two
+	// tools, and the second can simply not have been re-run. This is the same claim checked against what actually
+	// shipped, across both sources, so neither a hand-edited asset nor a forgotten export slips past it.
 
-	void every_master_carries_every_name ()
+	void every_master_and_both_sources_carry_every_name ()
 	{
 		QStringList reference;
 
 		for ( const int grid : config::icons::GRIDS )
 		{
-			const QDir directory ( QStringLiteral ( ":/vje/icons/%1" ).arg ( grid ) );
-
-			QStringList names = directory.entryList ( { QStringLiteral ( "*.svg" ) }, QDir::Files, QDir::Name );
+			const QStringList svgNames =
+				resource_base_names ( QStringLiteral ( ":/vje/icons/svg/%1" ).arg ( grid ), QStringLiteral ( ".svg" ) );
 
 			QVERIFY2
 			(
-				!names.isEmpty (),
-				qPrintable ( QStringLiteral ( "no assets compiled in for the %1 master" ).arg ( grid ) )
+				!svgNames.isEmpty (),
+				qPrintable ( QStringLiteral ( "no SVG assets compiled in for the %1 master" ).arg ( grid ) )
 			);
 
 			if ( reference.isEmpty () )
 			{
-				reference = names;
+				reference = svgNames;
 			}
 			else
 			{
-				QCOMPARE ( names, reference );
+				QCOMPARE ( svgNames, reference );
+			}
+
+			// The PNG tree carries one directory per RENDERED size, and the rungs above the first are OPTIONAL.
+			//
+			// The ladder exists to hand QIcon an exact-size render at integer device pixel ratios; a tree carrying only
+			// the base size still draws every icon, just scaled at 2x. So an absent rung is reported rather than
+			// failed -- but it IS reported, because a silently shortened ladder reads as "fine" until a HiDPI screen
+			// says otherwise, and because a rung that exists must still be complete (a HALF-exported size is a genuine
+			// fault, and the one a forgotten re-run actually produces).
+			//
+			// The BASE size is required. Without it the master contributes nothing at its own authored size, which is
+			// the one size the whole two-master design exists to get right.
+
+			QStringList absentSizes;
+
+			for ( const int multiple : config::icons::SCALE_MULTIPLES )
+			{
+				const int pixelSize = grid * multiple;
+
+				const QStringList pngNames = resource_base_names
+				(
+					QStringLiteral ( ":/vje/icons/png/%1/%2" ).arg ( grid ).arg ( pixelSize ),
+					QStringLiteral ( ".png" )
+				);
+
+				if ( pngNames.isEmpty () )
+				{
+					QVERIFY2
+					(
+						multiple != 1,
+						qPrintable ( QStringLiteral ( "the %1 master has no PNG assets at its own size (%2 px) -- run "
+						                              "tools/export_icon_pngs" ).arg ( grid ).arg ( pixelSize ) )
+					);
+
+					absentSizes.append ( QString::number ( pixelSize ) );
+
+					continue;
+				}
+
+				QCOMPARE ( pngNames, reference );
+			}
+
+			if ( !absentSizes.isEmpty () )
+			{
+				qInfo
+				(
+					"%s",
+					qPrintable ( QStringLiteral ( "the %1 master ships only some of its ladder -- %2 px absent, so those "
+					                              "device pixel ratios are served by scaling" )
+					             .arg ( grid ).arg ( absentSizes.join ( QStringLiteral ( ", " ) ) ) )
+				);
+			}
+		}
+	}
+
+	// A DERIVED ASSET CAN GO STALE: whichever tree is not the artwork is produced by a tool that can simply not have
+	// been re-run, leaving it drawing the previous version of a glyph -- silently, and in whichever configuration
+	// config::icons::SOURCE_FORMAT is not currently serving. This renders every SVG and compares it with the PNG.
+	//
+	// ONE COMPARISON ANSWERS BOTH DIRECTIONS. Agreement is symmetric, so which tree is the artwork changes only two
+	// things: how exactly the two are obliged to match, and which tool the failure tells you to re-run. Keeping it as
+	// one case rather than two is what stops the unused direction from rotting -- the arrow reversed once already.
+	//
+	// Compared by ALPHA rather than by colour, deliberately: the PNGs are alpha masks whose baked tint the application
+	// discards (IconLibrary::tint_mask reads coverage alone), so the alpha channel is both the whole of what is used
+	// and the one thing a re-export with a different tint would leave unchanged.
+
+	void the_two_trees_are_the_same_artwork ()
+	{
+		const bool tracedFromRaster = ( config::icons::ARTWORK_SOURCE == config::icons::ArtworkSource::Raster );
+
+		for ( const int grid : config::icons::GRIDS )
+		{
+			for ( const QString& name : all_icon_name_constants () )
+			{
+				QFile source ( QStringLiteral ( ":/vje/icons/svg/%1/%2.svg" ).arg ( grid ).arg ( name ) );
+
+				QVERIFY2
+				(
+					source.open ( QIODevice::ReadOnly ),
+					qPrintable ( QStringLiteral ( "no SVG for %1 at grid %2 -- run tools/trace_png_to_svg.py" )
+					             .arg ( name ).arg ( grid ) )
+				);
+
+				const QByteArray svgText = source.readAll ();
+
+				for ( const int multiple : config::icons::SCALE_MULTIPLES )
+				{
+					const int pixelSize = grid * multiple;
+
+					const QImage rendered = render_reference ( svgText, pixelSize, !tracedFromRaster );
+					const QImage exported (
+						QStringLiteral ( ":/vje/icons/png/%1/%2/%3.png" ).arg ( grid ).arg ( pixelSize ).arg ( name ) );
+
+					// A traced SVG owes its exactness to landing on whole pixels, and it owes that to the scale being
+					// an integer -- so this is asserted at every rung, INCLUDING the ones the PNG tree does not ship.
+					// It is the property the whole transcription rests on, and the only one still checkable where
+					// there is nothing to compare against.
+
+					if ( tracedFromRaster )
+					{
+						QVERIFY2
+						(
+							partial_coverage_count ( rendered ) == 0,
+							qPrintable ( QStringLiteral ( "%1 renders %2 partially-covered pixels at %3 px -- a traced "
+							                              "glyph must land on whole pixels at every integer multiple of "
+							                              "its grid, so its geometry has left the integer lattice" )
+							             .arg ( name ).arg ( partial_coverage_count ( rendered ) ).arg ( pixelSize ) )
+						);
+					}
+
+					// An absent rung is legal (see every_master_and_both_sources_carry_every_name); what is checked
+					// here is that the rungs which DO ship are current.
+
+					if ( exported.isNull () )
+					{
+						continue;
+					}
+
+					QCOMPARE ( exported.size (), rendered.size () );
+
+					QVERIFY2
+					(
+						alpha_channels_match ( rendered, exported ),
+						qPrintable ( QStringLiteral ( "%1 at %2 px differs between the two trees -- re-run %3" )
+						             .arg ( name ).arg ( pixelSize )
+						             .arg ( tracedFromRaster ? QStringLiteral ( "tools/trace_png_to_svg.py" )
+						                                     : QStringLiteral ( "tools/export_icon_pngs" ) ) )
+					);
+				}
 			}
 		}
 	}
@@ -246,15 +510,26 @@ private slots:
 	// master with stroke-width 1.6 measured 5.4% solid at 16 px and 20.9% at 20 px, and the two masters measure 51%
 	// and 53%. Anything between those two bands would catch a regression to the old scheme; 35% sits in the middle
 	// with room for the geometry to be retuned without the test becoming a tripwire.
+	//
+	// WHERE THE ARTWORK IS TWO-VALUED THE FLOOR CANNOT FAIL, and a check that cannot fail is worse than no check
+	// because it reads like coverage. A two-valued master has a 100% solid core however bad the drawing is. The
+	// property worth asserting there is the stronger one it actually promises -- that no delivered pixel carries
+	// partial coverage at all -- and since 2026-07-31 that holds through BOTH sources: the PNGs are drawn that way,
+	// and the SVGs traced from them rasterize back the same. So the assertion follows ARTWORK_SOURCE rather than
+	// SOURCE_FORMAT, and a dropped hardening pass in tools/export_icon_pngs, a mis-traced boundary, or a hand-drawn
+	// SVG with a real curve in it each break it.
 
 	void glyphs_are_pixel_crisp_at_every_authored_size ()
 	{
 		constexpr double SOLID_CORE_FLOOR = 0.35;
 
+		const bool artworkIsTwoValued = ( config::icons::ARTWORK_SOURCE == config::icons::ArtworkSource::Raster );
+
 		for ( const int grid : config::icons::GRIDS )
 		{
-			long long inked = 0;
-			long long solid = 0;
+			long long inked   = 0;
+			long long solid   = 0;
+			long long partial = 0;
 
 			for ( const QString& name : all_icon_name_constants () )
 			{
@@ -275,8 +550,22 @@ private slots:
 						++inked;
 
 						if ( alpha >= 250 ) ++solid;
+
+						if ( alpha < 255 ) ++partial;
 					}
 				}
+			}
+
+			if ( artworkIsTwoValued )
+			{
+				QVERIFY2
+				(
+					partial == 0,
+					qPrintable ( QStringLiteral ( "the %1 master delivers %2 partially-covered pixels at %1 px -- the "
+					                              "artwork is two-valued so that it can be edited pixel by pixel, and "
+					                              "every glyph the application draws from it, through either source, "
+					                              "has to arrive that way" ).arg ( grid ).arg ( partial ) )
+				);
 			}
 
 			QVERIFY ( inked > 0 );

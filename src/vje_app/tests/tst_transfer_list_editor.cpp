@@ -12,7 +12,7 @@
 //   IT IS DRIVEN AS A WIDGET rather than through a pure helper, because there is no pure helper to drive: the result IS
 //   the left list's contents, and the rules worth pinning are all about what the two lists hold after a gesture. That
 //   is fine offscreen -- selection, insertion, and ordering are all model state, and none of it needs a display server
-//   or keyboard focus (lessons-learned.md Q10 rules out only the focus-gated claims, and there are none here).
+//   or keyboard focus (the offscreen platform rules out only the focus-gated claims, and there are none here).
 //
 //   The two rules that carry the most weight are the ones a reasonable implementation gets wrong:
 //

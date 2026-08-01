@@ -8,23 +8,35 @@
 //
 //   IconLibrary -- the bundled, theme-aware icon set shared by the menu, toolbar, and tree (TREE-03, STYLE-06).
 //
-//   The assets are monochrome SVGs compiled into the binary as Qt resources (assets/images/icons/<grid>). Each one
-//   draws with stroke="currentColor" and names no colour of its own; this service substitutes the active palette's
-//   text colour at load time and rasterizes through QSvgRenderer. That is what satisfies "menu, toolbar, and tree
-//   icons are theme-aware and recolour with the theme" -- a requirement QIcon::fromTheme cannot meet, since it has no
-//   way to tint.
+//   The assets are monochrome glyphs compiled into the binary as Qt resources. They carry no colour of their own, and
+//   this service applies the active palette's text colour at load time -- which is what satisfies "menu, toolbar, and
+//   tree icons are theme-aware and recolour with the theme" (spec section 2.9), a requirement QIcon::fromTheme cannot
+//   meet since it has no way to tint.
+//
+//   TWO SOURCES, one behaviour. config::icons::SOURCE_FORMAT selects which is read; both are committed and both are
+//   compiled in, so switching is one constant and a rebuild:
+//
+//     Svg   assets/images/icons/svg/<grid>/<name>.svg -- each draws with fill="currentColor", and the palette colour
+//           is substituted into the source before QSvgRenderer rasterizes it.
+//     Png   assets/images/icons/png/<grid>/<size>/<name>.png -- already rasterized. Only the alpha channel is read;
+//           the palette colour is composited over it (tint_mask).
+//
+//   The two carry the SAME PIXELS, exactly, at every size either master is drawn for -- config::icons::ARTWORK_SOURCE
+//   names which one is the artwork and the other is generated from it. So the choice changes when rasterization
+//   happened, not what appears on screen; see AppConfig.hpp for what does turn on it.
 //
 //   TWO MASTERS, one per logical size the application asks for (config::icons::GRIDS: 16 and 20). They are separate
-//   artwork, because SVG has no hinting and a stroke is crisp only when it covers whole device pixels -- which the
-//   generator can only guarantee by drawing on a grid whose unit is a pixel at that grid's own size. Crispness then
-//   survives integer multiples and nothing else, so the 16 master serves 16/32/48/64 and the 20 master 20/40/60/80.
+//   artwork, because a glyph is crisp only when its edges cover whole device pixels -- which holds by construction for
+//   artwork drawn on a grid whose unit IS a pixel at that grid's own size. Crispness then survives integer multiples
+//   and nothing else, so the 16 master serves 16/32/48/64 and the 20 master 20/40/60/80.
 //   Both go into the SAME QIcon and QIcon matches by exact size, so icon() stays a lookup by name: no caller has to
 //   know which master answers it.
 //
 //   Rendering is done at that fixed set of sizes rather than through a custom QIconEngine. QIcon picks the exact-match
 //   entry for the device pixels it needs, so a 20 px toolbar button on a 2x display selects the real 40 px render
 //   instead of upscaling -- correct HiDPI at integer ratios without the failure modes of a hand-written engine. A
-//   FRACTIONAL ratio still falls between renders; closing that is the QIconEngine work parked in Phase 14.
+//   FRACTIONAL ratio still falls between renders; closing that is the QIconEngine work parked in Phase 15, and it is
+//   reachable only from the SVG source, since a pre-rasterized set has nothing left to re-render.
 //
 //   Icons are cached per name and the cache is dropped whenever ThemeService reapplies a palette, including the
 //   OS-driven repaint under the System theme.
@@ -43,6 +55,7 @@
 #include <QString>
 
 class QColor;
+class QImage;
 
 namespace vje
 {
@@ -182,8 +195,15 @@ namespace vje
 
 		QIcon build_icon ( const QString& name ) const;
 
+		// The vector path: one source per grid, rasterized with the tint substituted into it.
+
 		static QByteArray load_source  ( const QString& name, int grid );
 		static QPixmap    render_glyph ( const QByteArray& source, int pixelSize, const QColor& color );
+
+		// The raster path: one file per size, carrying the glyph in its alpha channel, tinted after loading.
+
+		static QImage  load_mask ( const QString& name, int grid, int pixelSize );
+		static QPixmap tint_mask ( const QImage& mask, const QColor& color );
 
 		//=============================================================================================================
 		// Data Members

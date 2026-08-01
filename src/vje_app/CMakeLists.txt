@@ -186,29 +186,55 @@ qt_add_executable ( vje_app
 target_include_directories ( vje_app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} )
 
 #-----------------------------------------------------------------------------------------------------------------------
-# The bundled icon set. The SVGs are committed assets, compiled into the
-# binary so the app has no external asset directory to locate at run time. CONFIGURE_DEPENDS re-runs the glob when a
-# file is added or removed, so regenerating the set does not need a manual reconfigure.
+# The bundled icon set. Committed assets, compiled into the binary so the app has no external asset directory to locate
+# at run time. CONFIGURE_DEPENDS re-runs the globs when a file is added or removed, so regenerating the set does not need
+# a manual reconfigure.
 #
-# VJE_ICON_FILES is consumed by tests/ as well (variables flow into add_subdirectory), so the icon-backed test target
-# compiles the same resource rather than a duplicate list.
+# THE SET IS COMMITTED IN TWO FORMS AND BOTH ARE COMPILED IN:
+#
+#   png/<grid>/<size>/<name>.png   the artwork, drawn by hand
+#   svg/<grid>/<name>.svg          traced from it, exactly      (tools/trace_png_to_svg.py)
+#
+# config::icons::ARTWORK_SOURCE names which of the two is the artwork -- the direction above reversed on 2026-07-31 and
+# could reverse again -- while config::icons::SOURCE_FORMAT decides which one IconLibrary READS. Compiling both is what
+# makes the second a one-constant change rather than a build-system change; see AppConfig.hpp. The cost is the unused
+# form carried in the binary either way (~25 KB of SVG, ~47 KB of PNG at the base rungs), which is the accepted price
+# of the fallback being reachable.
+#
+# BASE is the icons root for both, so each file keeps its own subtree in the resource path and the resource tree mirrors
+# the asset tree exactly: ":/vje/icons/svg/16/go-up.svg", ":/vje/icons/png/16/32/go-up.png".
+#
+# VJE_ICON_* are consumed by tests/ as well (variables flow into add_subdirectory), so the icon-backed test target
+# compiles the same resources rather than a duplicate list.
 #-----------------------------------------------------------------------------------------------------------------------
 
 set ( VJE_ICON_DIRECTORY "${CMAKE_SOURCE_DIR}/assets/images/icons" )
 
-# One subdirectory per authored grid (see config::icons::GRIDS and tools/generate_icons.py). BASE is the icons root, so
-# each file keeps its grid directory in the resource path: ":/vje/icons/16/go-up.svg".
+# One subdirectory per authored grid (see config::icons::GRIDS), and under the PNG tree one further level per rendered
+# size. The rungs above each master's own size are optional -- IconLibrary skips what is absent -- so these globs are
+# deliberately not asserted against an expected file count.
 
-file ( GLOB VJE_ICON_FILES CONFIGURE_DEPENDS "${VJE_ICON_DIRECTORY}/*/*.svg" )
+file ( GLOB VJE_ICON_SVG_FILES CONFIGURE_DEPENDS "${VJE_ICON_DIRECTORY}/svg/*/*.svg"   )
+file ( GLOB VJE_ICON_PNG_FILES CONFIGURE_DEPENDS "${VJE_ICON_DIRECTORY}/png/*/*/*.png" )
 
-if ( NOT VJE_ICON_FILES )
-    message ( FATAL_ERROR "No icons found under ${VJE_ICON_DIRECTORY}/<grid>/. The committed SVG icon assets are missing." )
+if ( NOT VJE_ICON_SVG_FILES )
+    message ( FATAL_ERROR "No icons found under ${VJE_ICON_DIRECTORY}/svg/<grid>/. The committed SVG icon assets are missing." )
 endif ()
 
-qt_add_resources ( vje_app "vje_icons"
+if ( NOT VJE_ICON_PNG_FILES )
+    message ( FATAL_ERROR "No icons found under ${VJE_ICON_DIRECTORY}/png/<grid>/<size>/. Run tools/export_icon_pngs after regenerating the SVGs." )
+endif ()
+
+qt_add_resources ( vje_app "vje_icons_svg"
     PREFIX "/vje/icons"
     BASE   "${VJE_ICON_DIRECTORY}"
-    FILES  ${VJE_ICON_FILES}
+    FILES  ${VJE_ICON_SVG_FILES}
+)
+
+qt_add_resources ( vje_app "vje_icons_png"
+    PREFIX "/vje/icons"
+    BASE   "${VJE_ICON_DIRECTORY}"
+    FILES  ${VJE_ICON_PNG_FILES}
 )
 
 # The application icon (tools/generate_app_icon.py). Compiled in so QApplication::setWindowIcon can set the window and

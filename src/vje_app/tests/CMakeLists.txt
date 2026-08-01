@@ -474,7 +474,7 @@ target_link_libraries ( tst_tree_view_pane PRIVATE vje_core )
 # Editor pane, Form View, and the array table (Phase 7).
 #
 # The Form View's pieces are shared by several of these targets, so the source lists are named once here rather than
-# repeated per target -- the same reasoning as VJE_ICON_FILES above.
+# repeated per target -- the same reasoning as VJE_ICON_SVG_FILES / VJE_ICON_PNG_FILES above.
 #-----------------------------------------------------------------------------------------------------------------------
 
 set ( VJE_GRID_MODEL_SOURCES
@@ -760,11 +760,18 @@ vje_app_add_gui_test ( tst_tab_surface
     ${CMAKE_CURRENT_SOURCE_DIR}/../style/FluentStyle.hpp
 )
 
-# The icon test rasterizes the REAL shipped assets rather than fixtures, so it compiles the same resource the
-# application does. VJE_ICON_DIRECTORY / VJE_ICON_FILES come from the parent scope (src/vje_app/CMakeLists.txt).
+# The icon test rasterizes the REAL shipped assets rather than fixtures, so it compiles the same resources the
+# application does -- BOTH sources, so the suite can assert that the two agree whichever one the build selects.
+# VJE_ICON_DIRECTORY / VJE_ICON_SVG_FILES / VJE_ICON_PNG_FILES come from the parent scope (src/vje_app/CMakeLists.txt).
 
-qt_add_resources ( tst_icon_library "vje_icons_test"
+qt_add_resources ( tst_icon_library "vje_icons_test_svg"
     PREFIX "/vje/icons"
     BASE   "${VJE_ICON_DIRECTORY}"
-    FILES  ${VJE_ICON_FILES}
+    FILES  ${VJE_ICON_SVG_FILES}
+)
+
+qt_add_resources ( tst_icon_library "vje_icons_test_png"
+    PREFIX "/vje/icons"
+    BASE   "${VJE_ICON_DIRECTORY}"
+    FILES  ${VJE_ICON_PNG_FILES}
 )

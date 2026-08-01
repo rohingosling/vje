@@ -481,7 +481,7 @@ namespace vje::config
 		// anything else is a master rendered at a size it was not authored on. The guard rail at the foot of this file
 		// enforces it; it exists because this constant spent a release at 18, where the blur read as a poor asset
 		// rather than as a wrong number. Raising it to 24 is therefore no longer a one-line change: it would need a
-		// 24-unit master in tools/generate_icons.py first.
+		// 24-unit master DRAWN first, which is a set of 43 glyphs rather than a constant.
 		//
 		// 20 is one rung above the menu, the tree (tree::ICON_SIZE), and the tab strip (editor::TAB_ICON_SIZE), which
 		// is the deliberate divergence: the toolbar's glyphs carry the command on their own, with no label beside them.
@@ -495,10 +495,11 @@ namespace vje::config
 
 	namespace icons
 	{
-		// The icon set ships as TWO MASTERS, one per logical size the application asks for: assets/images/icons/16 and
-		// .../20. They are separate artwork rather than one drawing scaled, because SVG has no hinting -- a stroke is
-		// crisp only when it is a whole number of device pixels wide AND centred on a half-integer device coordinate,
-		// and the generator can only state both at once by authoring a grid whose unit IS a pixel at its own size.
+		// The icon set ships as TWO MASTERS, one per logical size the application asks for:
+		// assets/images/icons/svg/16 and .../svg/20. They are separate artwork rather than one drawing scaled, because
+		// SVG has no hinting -- a stroke is crisp only when it is a whole number of device pixels wide AND centred on a
+		// half-integer device coordinate, and the generator can only state both at once by authoring a grid whose unit
+		// IS a pixel at its own size.
 		//
 		// Crispness then survives every INTEGER multiple of the grid and nothing in between: the 16 master is exact at
 		// 16 / 32 / 48 / 64 and soft at 20, the 20 master is exact at 20 / 40 / 60 / 80 and soft at 16. That is the
@@ -510,6 +511,97 @@ namespace vje::config
 		// through 4x with an exact-size render rather than an upscale of a smaller one.
 
 		inline constexpr int SCALE_MULTIPLES [] = { 1, 2, 3, 4 };
+
+		//-------------------------------------------------------------------------------------------------------------
+		// Which rasterization source IconLibrary serves the set from.
+		//
+		// The set is committed in BOTH forms and both are compiled in (src/vje_app/CMakeLists.txt): the PNG masters
+		// under assets/images/icons/png/<grid>/<size>/ and the SVG set under assets/images/icons/svg/<grid>/. Which of
+		// the two is the artwork, and which is generated from it, is ARTWORK_SOURCE below -- this constant is only
+		// about which one is READ. Switching is therefore this one constant and a rebuild -- no CMake edit, no asset
+		// regeneration -- which is the whole point: it is a FALLBACK, and a fallback that needs a build-system change
+		// to reach is not one.
+		//
+		// The two are interchangeable rather than merely similar, because both sources are tinted from the palette at
+		// load time -- the PNGs are alpha masks whose baked colour the application discards -- and because whichever
+		// tree is DERIVED is produced through the same QSvgRenderer pass at the same sizes IconLibrary would have used.
+		// So the choice does not change what is on screen, only when the rasterization happened. Spec section 2.9's
+		// "icons recolour with the theme" holds either way.
+		//
+		// SINCE THE SVG SET BECAME A TRANSCRIPTION OF THE PNG ONE (2026-07-31, see ARTWORK_SOURCE below) the two are
+		// pixel-identical at every authored size rather than merely shape-identical, which removes the one reason this
+		// constant used to change what the user sees. What remains is a payload and reach difference, and it runs one
+		// way: SVG is 25 KB against the PNG tree's 47 KB for the base rungs ALONE -- restoring the full 1x-4x ladder
+		// would take the raster tree past 180 KB while the vector one does not move -- and SVG is the only form that
+		// can be rendered at a size nobody exported, including the fractional device pixel ratios a QIconEngine would
+		// need (see the guard rail at the foot of this file). PNG earns its keep as the fallback for a platform where
+		// QSvgRenderer is unavailable or misbehaving; it needs no Qt SVG module at load time, though the module stays a
+		// hard build dependency either way.
+		//-------------------------------------------------------------------------------------------------------------
+
+		enum class SourceFormat
+		{
+			Svg,   // Rasterize the vector set at load time.
+			Png    // Load the pre-rasterized masks and tint them.
+		};
+
+		inline constexpr SourceFormat SOURCE_FORMAT = SourceFormat::Svg;
+
+		// Where a rasterized pixel stops counting as inked, wherever an antialiased coverage map has to be cut into the
+		// two-value set the PNG tree commits (2026-07-31).
+		//
+		// THE PNG SET IS DELIBERATELY ALIASED so the files can be hand-edited pixel by pixel; an antialiased edge has
+		// no single pixel to select, fill or erase. That is now a property of the artwork itself rather than of a
+		// conversion -- the masters are drawn two-valued -- so the threshold has retreated to two narrower jobs: it is
+		// the cut tools/export_icon_pngs makes when the arrow runs the other way (ArtworkSource::Vector), and it is
+		// what tools/trace_png_to_svg.py resolves a stray antialiased pixel with rather than dropping it silently.
+		//
+		// 96 is measured. At the midpoint 128 a 1.0-wide stroke laid around an arc -- spread over two pixel columns at
+		// roughly half coverage each -- loses BOTH columns and the ring breaks into dashes; edit-find, help-about and
+		// vje-null all fail that way, and disintegrate at 160. At 96 every stroke in all 43 glyphs survives at both
+		// authored sizes.
+		//
+		// It lives here because tst_icon_library needs it under ArtworkSource::Vector, where the two trees agree only
+		// once the reference render is cut at the same place. Under Raster it is NOT applied to the comparison, and
+		// deliberately: a transcription is exact, so hardening the reference there would let a genuinely soft render
+		// pass by rounding it to the answer expected. tools/export_icon_pngs and tools/trace_png_to_svg.py each restate
+		// the value, being standalone tools that cannot include this header -- the arrangement SCALE_MULTIPLES has.
+
+		inline constexpr int PNG_ALPHA_THRESHOLD = 96;
+
+		//-------------------------------------------------------------------------------------------------------------
+		// WHICH OF THE TWO TREES IS THE ARTWORK (2026-07-31). The other is derived from it, and drift between them is
+		// an error either way -- this says which direction to regenerate in, and how exactly they are obliged to agree.
+		//
+		// Vector -- the SVG masters are drawn (historically by tools/generate_icons.py, as strokes on a half-integer
+		//           grid) and tools/export_icon_pngs rasterize them into the PNG tree. The two agree only after the
+		//           antialiased render is cut at PNG_ALPHA_THRESHOLD, so the comparison is made on the cut.
+		//
+		// Raster -- the PNG masters are drawn or corrected by hand, pixel by pixel, and tools/trace_png_to_svg.py
+		//           transcribes them into the SVG tree. The two agree EXACTLY: a binary bitmap is a polygon set whose
+		//           vertices are all integers, so tracing its boundaries and rasterizing them back reproduces it pixel
+		//           for pixel at every integer multiple of the grid, with no antialiasing anywhere to cut.
+		//
+		// Raster is what ships. It reverses an arrow that pointed the other way for the whole of Phases 5 to 14, and
+		// the reason is that the stroke-based masters could not be corrected: nudging a glyph meant editing geometry
+		// in a generator and re-rendering to find out what it did, where a two-valued PNG can simply be drawn. The
+		// direction that survived is the one a human can actually author in.
+		//
+		// The exactness is not a nicety -- it is what lets SOURCE_FORMAT stay a free choice. While the trees merely
+		// resembled one another, switching source changed what was on screen; now it does not.
+		//
+		// EACH GENERATOR REBUILDS ITS TARGET TREE WHOLESALE, which is why this is stated rather than inferred: running
+		// the wrong one replaces the artwork with a re-derivation of a derivation. tools/export_icon_pngs additionally
+		// refuses a non-empty target without --overwrite, since under Raster it is the one that would destroy work.
+		//-------------------------------------------------------------------------------------------------------------
+
+		enum class ArtworkSource
+		{
+			Vector,   // The SVG masters are the artwork; the PNGs are rasterized from them (compared on the cut).
+			Raster    // The PNG masters are the artwork; the SVGs are traced from them (compared exactly).
+		};
+
+		inline constexpr ArtworkSource ARTWORK_SOURCE = ArtworkSource::Raster;
 	}
 
 	//-----------------------------------------------------------------------------------------------------------------
@@ -766,13 +858,15 @@ namespace vje::config
 	//
 	// Checking it here rather than in a test is deliberate -- it is a property of the CONSTANT, it costs nothing, and it
 	// fails at the edit rather than at the next test run. Add a line below whenever a new surface starts asking
-	// IconLibrary for a size; adding a THIRD logical size means adding a third master to tools/generate_icons.py, which
-	// is exactly the cost this assert exists to make visible at the point of the edit.
+	// IconLibrary for a size; adding a THIRD logical size means DRAWING a third master -- 43 more glyphs, on a third
+	// grid -- which is exactly the cost this assert exists to make visible at the point of the edit.
 	//
 	// KNOWN LIMIT, stated so it is not mistaken for coverage: this checks LOGICAL sizes, and QIcon asks for logical x
 	// device pixel ratio. Integer ratios are covered by icons::SCALE_MULTIPLES; a fractional one is not (20 x 1.25 = 25
 	// is a multiple of neither grid). Closing that needs a QIconEngine rendering the SVG at the requested device size,
-	// which IconLibrary deliberately does not have -- see its header, and Phase 14.
+	// which IconLibrary deliberately does not have -- see its header, and Phase 15. That route exists only under
+	// icons::SOURCE_FORMAT == Svg; a pre-rasterized set has nothing to re-render, which is the one capability the two
+	// sources do NOT share now that they carry identical pixels.
 	//-----------------------------------------------------------------------------------------------------------------
 
 	namespace icons

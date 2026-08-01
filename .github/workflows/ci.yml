@@ -66,7 +66,7 @@ jobs:
       # Qt SVG (required by src/vje_app/services/IconLibrary) needs NO `modules:` entry: it is part of the base
       # aqtinstall archive this action wraps. Verified against an aqt linux_gcc_64 6.8.3 install, which ships
       # libQt6Svg.so, the Qt6Svg CMake package, and the qsvg image plugin. Only MSYS2 splits it into a separate
-      # package (see docs/build.md section 2).
+      # package.
 
       - name: Install Qt 6
         uses: jurplel/install-qt-action@v4

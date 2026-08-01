@@ -10,7 +10,7 @@
 #   C++20 / Qt 6 Widgets with CMake + Ninja and GCC 13+. One codebase, one src/ tree (no per-OS split): the UI-free
 #   vje_core domain library (Qt Core only), the vje_app Qt Widgets executable, and their Qt Test / CTest targets.
 #
-#   Configure / build / test via the presets in CMakePresets.json (see docs/build.md):
+#   Configure / build / test via the presets in CMakePresets.json:
 #     cmake --preset <preset>  |  cmake --build --preset <preset>  |  ctest --preset <preset> --output-on-failure
 #
 #-----------------------------------------------------------------------------------------------------------------------
@@ -31,7 +31,7 @@ set ( CMAKE_CXX_STANDARD          20 )
 set ( CMAKE_CXX_STANDARD_REQUIRED ON )
 set ( CMAKE_CXX_EXTENSIONS        OFF )
 
-# Emit compile_commands.json for clangd / IntelliSense (docs/build.md section 4).
+# Emit compile_commands.json for clangd / IntelliSense.
 
 set ( CMAKE_EXPORT_COMPILE_COMMANDS ON )
 

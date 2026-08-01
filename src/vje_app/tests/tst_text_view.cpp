@@ -507,7 +507,7 @@ private slots:
 	{
 		// The one thing that connects this widget to the renderer's wrapping: a width in PIXELS becomes a width in
 		// CHARACTERS, exactly, because the font is fixed-width -- the same property the renderer's column alignment
-		// already depends on (lessons-learned.md Q15). Asserted by making the view narrow and checking that no rendered
+		// already depends on. Asserted by making the view narrow and checking that no rendered
 		// line overruns it, which is the claim a user actually cares about.
 
 		ParseResult longValue = JsonParser::parse ( QStringLiteral (

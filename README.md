@@ -112,7 +112,7 @@ A sample document ships with the source at **`assets/sample-files/smoke-test-1.j
 
 ## 🔨 Build
 
-Requires **CMake 3.21+**, **Ninja**, **GCC 13 or later**, and **Qt 6**, including the **Qt SVG** module, which is a hard dependency (the icon set is rasterized from SVG at load time). Both platforms build the same source tree with the same compiler family; there is no per-OS source split.
+Requires **CMake 3.21+**, **Ninja**, **GCC 13 or later**, and **Qt 6**, including the **Qt SVG** module, which is a hard dependency (the icon set ships in both vector and raster form, and the test suite rasterizes the vector one to check the two against each other). Both platforms build the same source tree with the same compiler family; there is no per-OS source split.
 
 **On Windows**, GCC comes from MinGW-w64 and must match the Qt MinGW build you install. **On Linux**, GCC 13 comes from your distribution's toolchain packages, and Qt 6 from either your package manager or `aqtinstall`.
 
