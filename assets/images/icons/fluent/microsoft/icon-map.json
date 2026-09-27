@@ -1,0 +1,90 @@
+{
+  "_about": [
+    "VJE glyph name -> upstream family folder in microsoft/fluentui-system-icons.",
+    "",
+    "THE PARTITION IS STATED BY OMISSION. A name listed here is served by the vendored Microsoft",
+    "glyph; a name absent from here is served by VJE's own traced artwork under fluent/custom/.",
+    "There is deliberately no second list of the custom names to keep in step -- the icon set's",
+    "names are icon_names in src/vje_app/services/IconLibrary.hpp, and this file says which of them",
+    "Microsoft answers.",
+    "",
+    "A GLYPH FAMILY IS AUDITED AS A UNIT, because a family's meaning comes from its members agreeing",
+    "with each other rather than from any one glyph. That is why several obvious-looking candidates",
+    "are absent:",
+    "",
+    "  - The six Add variants (vje-add-*). Microsoft ships Text Add and Stack Add but has no",
+    "    Braces Add, Toggle Add, Prohibited Add or Number Symbol Add, so a vendored Add family would",
+    "    be six glyphs that no longer read as one set.",
+    "  - The four Convert To variants (vje-convert-*), which are the Add family one badge later and",
+    "    fail for the same reason.",
+    "  - vje-array. Checked across all 2,970 families, Microsoft has nothing for [], so the array",
+    "    glyph stays VJE's own traced artwork.",
+    "",
+    "    CORRECTED 2026-08-14. This entry used to say that vendoring vje-object alone would split a",
+    "    pair the tree shows side by side -- which was never true of the tree as shipped, since",
+    "    vje-object HAS been vendored (as Braces) since the first pull. The reasoning survived from",
+    "    a draft in which neither was. It is now moot in a second way: vje-object is the FOLDER, so",
+    "    object and array were never going to be a matched pair of brackets, and spec TREE-03 has",
+    "    said Object -> Folder, Array -> List/grid all along. Whether vje-array follows to a List or",
+    "    Grid glyph is deliberately still open -- the folder is being tried on its own first.",
+    "  - The three array transforms and vje-copy-pointer, which have no Fluent concept behind them.",
+    "",
+    "A VENDORED NAME IS VENDORED AT BOTH DESIGN SIZES. Where upstream ships only one of 16 / 20,",
+    "that one design serves both and the puller reports it. Serving one design size from Microsoft",
+    "and the other from the custom tree would make a command's glyph change identity between the",
+    "tree (16) and the toolbar (20), which is the collision src/vje_app/CMakeLists.txt keeps the two",
+    "sub-trees on separate resource prefixes to prevent.",
+    "",
+    "To re-pull:  python3 tools/pull_microsoft_icons.py --source <path to a fluentui-system-icons checkout>"
+  ],
+
+  "source": {
+    "repository": "https://github.com/microsoft/fluentui-system-icons",
+    "licence": "MIT -- see LICENSE beside this file",
+    "style": "regular",
+    "designSizes": [ 16, 20 ]
+  },
+
+  "icons": {
+    "document-new":        "Document Add",
+    "document-open":       "Folder Open",
+    "document-save":       "Save",
+    "document-save-as":    "Save Edit",
+    "window-close":        "Document Dismiss",
+    "document-print":      "Print",
+    "document-page-setup": "Document Margins",
+
+    "tab-close": "Dismiss",
+
+    "edit-undo":  "Arrow Undo",
+    "edit-redo":  "Arrow Redo",
+    "edit-cut":   "Cut",
+    "edit-copy":  "Copy",
+    "edit-paste": "Clipboard Paste",
+    "edit-find":  "Search",
+    "go-jump":    "Arrow Enter",
+
+    "edit-delete":   "Delete",
+    "vje-duplicate": "Document Copy",
+    "vje-rename":    "Rename",
+    "go-up":         "Arrow Up",
+    "go-down":       "Arrow Down",
+
+    "vje-expand-all":   "Arrow Expand All",
+    "vje-collapse-all": "Arrow Collapse All",
+
+    "preferences-system": "Settings",
+    "help-about":         "Info",
+
+    "text-x-generic": "Document",
+    "vje-object":     "Folder",
+    "vje-string":     "Text T",
+    "vje-number":     "Number Symbol",
+    "vje-boolean":    "Toggle Right",
+    "vje-null":       "Prohibited",
+
+    "vje-view-form": "Form",
+    "vje-view-text": "Document Text",
+    "vje-view-code": "Code"
+  }
+}
